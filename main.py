@@ -1,5 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+# from sklearn.decomposition import PCA as sklearnPCA
+# from sklearn.preprocessing import StandardScaler
 
 
 class MP:
@@ -15,7 +17,7 @@ class MP:
 
 
 # pd.set_option('display.mpl_style', 'default')  # Make the graphs a bit prettier
-plt.rcParams['figure.figsize'] = (15, 5)
+# plt.rcParams['figure.figsize'] = (15, 5)
 
 # import the databases
 hl_hlasovani = pd.read_csv(
@@ -42,6 +44,15 @@ organy = pd.read_csv(
 organy.columns = ['id_organ', 'id_nadrazeny_organ', 'id_typ_organu', 'id_zkratka',
                   'nazev_organu_cz', 'nazev_organu_en', 'od_organ', 'do_organ', 'priorita', 'ci_organ_base']
 
+def vote_result_to_number(result):
+    if result == 'A':
+        return 1
+    elif result == 'B':
+        return -1
+    else:
+        return 0
+
+# extract MPs and create objects
 current_mps = poslanci[poslanci['id_obdobi'] == 172]
 final_mps = []
 for index, row in current_mps.iterrows():
@@ -49,5 +60,24 @@ for index, row in current_mps.iterrows():
     party = organy[organy['id_organ'] == row['id_kandidatka']]
     final_mps.append(MP(row['id_poslanec'], row['id_osoba'], party['nazev_organu_cz'].item(
     ), person['jmeno'].item(), person['prijmeni'].item()))
+
+# prepare the data for PCA
+votes_labels = hl_hlasovani['id_hlasovani'].tolist()
+votes_labels.append('id_poslanec')
+list_of_mp_votes=[]
 for mp in final_mps:
-    print(mp)
+    mp_votes=list(map(vote_result_to_number, hl_poslanec[hl_poslanec['id_poslanec']==mp.id_poslanec]['vysledek'].tolist()))
+    mp_votes.append(mp.id_poslanec)
+    if len(mp_votes) != len(votes_labels):
+        print("Ignoring {}, only did {} votes".format(mp, len(mp_votes)))
+        continue
+    list_of_mp_votes.append(pd.Series(data=mp_votes, index=votes_labels))
+df=pd.DataFrame(list_of_mp_votes, columns=votes_labels)
+print(df)
+# pd.DataFrame([])
+# pd.concat([pd.DataFrame([0]*len(votes_labels), columns=votes_labels) for i in range(len(final_mps))], ignore_index=True)
+# PCA itself
+""" sklearn_pca=sklearnPCA(n_components=2)
+X_std = StandardScaler().fit_transform(X)
+Y_sklearn = sklearn_pca.fit_transform(X_std) """
+# print(hl_poslanec[hl_poslanec['id_poslanec']==final_mps[0].id_poslanec])
