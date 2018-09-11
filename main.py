@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-# from sklearn.decomposition import PCA as sklearnPCA
-# from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 
 class MP:
@@ -44,6 +44,7 @@ organy = pd.read_csv(
 organy.columns = ['id_organ', 'id_nadrazeny_organ', 'id_typ_organu', 'id_zkratka',
                   'nazev_organu_cz', 'nazev_organu_en', 'od_organ', 'do_organ', 'priorita', 'ci_organ_base']
 
+
 def vote_result_to_number(result):
     if result == 'A':
         return 1
@@ -51,6 +52,13 @@ def vote_result_to_number(result):
         return -1
     else:
         return 0
+
+def get_mp_by_id(id, list_of_mps):
+    for mp in list_of_mps:
+        if mp.id_poslanec == id:
+            return mp
+    return None
+
 
 # extract MPs and create objects
 current_mps = poslanci[poslanci['id_obdobi'] == 172]
@@ -64,19 +72,45 @@ for index, row in current_mps.iterrows():
 # prepare the data for PCA
 votes_labels = hl_hlasovani['id_hlasovani'].tolist()
 votes_labels.append('id_poslanec')
-list_of_mp_votes=[]
+list_of_mp_votes = []
 for mp in final_mps:
-    mp_votes=list(map(vote_result_to_number, hl_poslanec[hl_poslanec['id_poslanec']==mp.id_poslanec]['vysledek'].tolist()))
+    mp_votes = list(map(vote_result_to_number,
+                        hl_poslanec[hl_poslanec['id_poslanec'] == mp.id_poslanec]['vysledek'].tolist()))
     mp_votes.append(mp.id_poslanec)
     if len(mp_votes) != len(votes_labels):
-        print("Ignoring {}, only did {} votes".format(mp, len(mp_votes)))
+        print("Ignoring {}, only voted {} times".format(mp, len(mp_votes)-1))
         continue
     list_of_mp_votes.append(pd.Series(data=mp_votes, index=votes_labels))
-df=pd.DataFrame(list_of_mp_votes, columns=votes_labels)
-print(df)
-# pd.DataFrame([])
-# pd.concat([pd.DataFrame([0]*len(votes_labels), columns=votes_labels) for i in range(len(final_mps))], ignore_index=True)
-# PCA itself
+
+#PCA itself
+df = pd.DataFrame(list_of_mp_votes, columns=votes_labels)
+x = df.loc[:, votes_labels[:-1]].values
+y = df.loc[:, ['id_poslanec']].values
+x = StandardScaler().fit_transform(x)
+pca = PCA(n_components=2)
+principal_components = pca.fit_transform(x)
+principal_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
+final_df = pd.concat([principal_df, df[['id_poslanec']]], axis=1)
+
+# print(final_df)
+# graph it
+fig = plt.figure(figsize=(10,10))
+ax = fig.add_subplot(1, 1, 1)
+ax.set_xlabel('PC1', fontsize=15)
+ax.set_ylabel('PC2', fontsize=15)
+ax.set_title('Distribuce stran dle hlasování', fontsize=20)
+parties = ["ANO2011", "Česká pirátská strana", "Česká strana sociálně demokratická", "Starostove a nezavisli", "Občanská demokratická strana",
+           "Křesťanská a demokratická unie - Československá strana lidová", "Komunistická strana Čech a Moravy", "Svoboda a prima demokracie - Tomio Okamura", "TOP 09"]
+colors = ["midnightblue", "black", "orange", "green", "royalblue", "gold", "red", "lightpink", "darkviolet"]
+
+for index, mp in final_df.iterrows():
+    mp_object=get_mp_by_id(mp['id_poslanec'], final_mps)
+    party_index=parties.index(mp_object.party)
+    ax.scatter(mp['PC1'], mp['PC2'], c=colors[party_index], s=50)
+
+#ax.legend(parties)
+ax.grid()
+fig.savefig('graph.png')
 """ sklearn_pca=sklearnPCA(n_components=2)
 X_std = StandardScaler().fit_transform(X)
 Y_sklearn = sklearn_pca.fit_transform(X_std) """
